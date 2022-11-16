@@ -1,0 +1,286 @@
+--Попробуйте вывести не просто самую высокую зарплату во всей команде, а вывести именно фамилию сотрудника с самой высокой зарплатой.
+SELECT SPLIT_PART(name_employee, ' ', 1) AS "Фамилия", salary AS "Зарплата"
+FROM employees
+WHERE salary = (SELECT MAX(salary)  FROM employees);
+
+--Попробуйте вывести фамилии сотрудников в алфавитном порядке
+SELECT SPLIT_PART(name_employee, ' ', 1) AS "Фамилия"
+FROM employees
+ORDER BY "Фамилия";
+
+--Рассчитайте средний стаж для каждого уровня сотрудников
+
+SELECT level_skill, (SUM(CURRENT_DATE - date_employment)/COUNT(*))/30 AS "Стаж в месяцах"
+FROM employees
+GROUP BY level_skill
+
+--Выведите фамилию сотрудника и название отдела, в котором он работает
+SELECT SPLIT_PART(name_employee, ' ', 1) AS "Фамилия", name_department
+FROM employees AS e
+INNER JOIN departments AS d
+ON e.id_department=d.id_department
+
+--Выведите название отдела и фамилию сотрудника с самой высокой зарплатой в данном отделе и саму зарплату также.
+SELECT name_department, SPLIT_PART(name_employee, ' ', 1) AS "Фамилия", salary
+FROM employees AS e
+INNER JOIN departments AS d
+ON e.id_department=d.id_department
+WHERE salary IN (
+	SELECT MAX(salary)
+	FROM employees 
+	GROUP BY id_department );
+
+--Выведите название отдела, сотрудники которого получат наибольшую премию по итогам года. Как рассчитать премию можно узнать в последнем задании предыдущей домашней работы
+
+SELECT name_department
+FROM departments AS TAB2
+INNER JOIN(SELECT id_department,
+	 SUM((salary * (1 + Q1 + Q2 +Q3 +Q4)) - salary) as "Премия"
+FROM employees AS e 
+INNER JOIN (
+	SELECT name_employee, 
+			CASE rating_quarter_1 
+			WHEN 'A' THEN 0.2
+			WHEN 'B' THEN 0.1
+			WHEN 'C' THEN 0
+			WHEN 'D' THEN -0.1
+			WHEN 'E' THEN -0.2
+			ELSE 0
+			END Q1,
+			CASE rating_quarter_2 
+			WHEN 'A' THEN 0.2
+			WHEN 'B' THEN 0.1
+			WHEN 'C' THEN 0
+			WHEN 'D' THEN -0.1
+			WHEN 'E' THEN -0.2
+			ELSE 0
+			END Q2,
+			CASE rating_quarter_3
+			WHEN 'A' THEN 0.2
+			WHEN 'B' THEN 0.1
+			WHEN 'C' THEN 0
+			WHEN 'D' THEN -0.1
+			WHEN 'E' THEN -0.2
+			ELSE 0 
+			END Q3,
+			CASE rating_quarter_4
+			WHEN 'A' THEN 0.2
+			WHEN 'B' THEN 0.1
+			WHEN 'C' THEN 0
+			WHEN 'D' THEN -0.1
+			WHEN 'E' THEN -0.2
+			ELSE 0
+			END Q4
+	FROM prize
+) T1	
+USING(name_employee)
+GROUP BY id_department
+ORDER BY 2 DESC
+LIMIT 1) TAB1
+ON TAB1.id_department=TAB2.id_department;
+
+--Проиндексируйте зарплаты сотрудников с учетом коэффициента премии. Для сотрудников с коэффициентом премии больше 1.2 – размер индексации составит 20%, для сотрудников с коэффициентом премии от 1 до 1.2 размер индексации составит 10%. Для всех остальных сотрудников индексация не предусмотрена.
+
+CREATE VIEW RES AS 
+        (SELECT e.name_employee,  
+		salary, 
+		1 + Q1 + Q2 +Q3 +Q4 AS "Коэффициент"
+FROM employees AS e 
+INNER JOIN (
+	SELECT name_employee, 
+			CASE rating_quarter_1 
+			WHEN 'A' THEN 0.2
+			WHEN 'B' THEN 0.1
+			WHEN 'C' THEN 0
+			WHEN 'D' THEN -0.1
+			WHEN 'E' THEN -0.2
+			ELSE 0
+			END Q1,
+			CASE rating_quarter_2 
+			WHEN 'A' THEN 0.2
+			WHEN 'B' THEN 0.1
+			WHEN 'C' THEN 0
+			WHEN 'D' THEN -0.1
+			WHEN 'E' THEN -0.2
+			ELSE 0
+			END Q2,
+			CASE rating_quarter_3
+			WHEN 'A' THEN 0.2
+			WHEN 'B' THEN 0.1
+			WHEN 'C' THEN 0
+			WHEN 'D' THEN -0.1
+			WHEN 'E' THEN -0.2
+			ELSE 0 
+			END Q3,
+			CASE rating_quarter_4
+			WHEN 'A' THEN 0.2
+			WHEN 'B' THEN 0.1
+			WHEN 'C' THEN 0
+			WHEN 'D' THEN -0.1
+			WHEN 'E' THEN -0.2
+			ELSE 0
+			END Q4
+	FROM prize
+) T1	
+USING(name_employee));
+
+SELECT name_employee, 
+	CASE 
+	WHEN Коэффициент >1.2 THEN salary*1.2
+	WHEN  Коэффициент <= 1.2 AND Коэффициент >1 THEN salary*1.1
+	ELSE salary
+	END AS "Проиндексированная зарплата",
+	salary
+FROM RES
+
+
+/*i.     Название отдела
+ ii.     Фамилию руководителя
+iii.     Количество сотрудников
+iv.     Средний стаж
+ v.     Средний уровень зарплаты
+vi.     Количество сотрудников уровня junior
+vii.     Количество сотрудников уровня middle
+viii.     Количество сотрудников уровня senior
+ix.     Количество сотрудников уровня lead
+x.     Общий размер оплаты труда всех сотрудников до индексации
+xi.     Общий размер оплаты труда всех сотрудников после индексации
+xii.     Общее количество оценок А
+xiii.     Общее количество оценок B
+xiv.     Общее количество оценок C
+xv.     Общее количество оценок D
+xvi.     Общее количество оценок Е
+xvii.     Средний показатель коэффициента премии
+xviii.     Общий размер премии.
+xix.     Общую сумму зарплат(+ премии) до индексации
+xx.     Общую сумму зарплат(+ премии) после индексации(премии не индексируются)
+xxi.     Разницу в % между предыдущими двумя суммами(первая/вторая)*/
+CREATE VIEW tab AS(
+SELECT name_department, 
+		SPLIT_PART(name_supervisor, ' ', 1) as "Фамилия руководителя",
+		e.name_employee,
+		CURRENT_DATE - e.date_employment as "Стаж в днях",
+		salary, 
+		e.level_skill,
+		rating_quarter_1,
+		rating_quarter_2,
+		rating_quarter_3,
+		rating_quarter_4,
+		CASE rating_quarter_1 
+			WHEN 'A' THEN 0.2
+			WHEN 'B' THEN 0.1
+			WHEN 'C' THEN 0
+			WHEN 'D' THEN -0.1
+			WHEN 'E' THEN -0.2
+			ELSE 0
+			END Q1,
+			CASE rating_quarter_2 
+			WHEN 'A' THEN 0.2
+			WHEN 'B' THEN 0.1
+			WHEN 'C' THEN 0
+			WHEN 'D' THEN -0.1
+			WHEN 'E' THEN -0.2
+			ELSE 0
+			END Q2,
+			CASE rating_quarter_3
+			WHEN 'A' THEN 0.2
+			WHEN 'B' THEN 0.1
+			WHEN 'C' THEN 0
+			WHEN 'D' THEN -0.1
+			WHEN 'E' THEN -0.2
+			ELSE 0 
+			END Q3,
+			CASE rating_quarter_4
+			WHEN 'A' THEN 0.2
+			WHEN 'B' THEN 0.1
+			WHEN 'C' THEN 0
+			WHEN 'D' THEN -0.1
+			WHEN 'E' THEN -0.2
+			ELSE 0
+			END Q4
+		
+FROM prize p 
+LEFT JOIN employees e 
+ON p.name_employee = e.name_employee
+LEFT JOIN departments d
+ON d.id_department = e.id_department
+);
+
+create view count_level_skill as (
+	select name_department, "Количество сеньеров", "Количество мидлов", "Количество джунов"
+	from 
+	(select id_department, count(*) as "Количество сеньеров"
+	from employees
+	where level_skill = 'senior'
+	group by id_department) as s
+	left join
+	(select id_department, count(*) as "Количество джунов"
+	from employees
+	where level_skill = 'jun'
+	group by id_department) as j
+	on s.id_department = j.id_department
+	left join
+	(select id_department, count(*) as "Количество мидлов"
+	from employees
+	where level_skill = 'middle'
+	group by id_department) as m
+	on s.id_department = m.id_department
+	left join departments as d
+	on s.id_department = d.id_department
+);
+
+select  cls.name_department, 
+		"Фамилия руководителя",
+		count(name_employee) as "Количество сотрудников в отделе",
+		--SUM("Стаж в днях")/COUNT(*)/30 AS "Стаж в месяцах"
+		round( avg("Стаж в днях")/30, 2) AS "Стаж в месяцах",
+		round(avg(salary), 2) "Средняя зп по отделу",
+		round(avg("Количество джунов"), 2) as "Количество джунов",
+		round(avg("Количество мидлов"), 2) as "Количество мидлов",
+		round(avg("Количество сеньеров"), 2) as "Количество сеньеров",
+		sum(salary) "Общая зп по отделу",
+		round(case 
+		when avg(1+Q1 + Q2 +Q3 +Q4)>1.2 THEN sum(salary)*1.2
+		when avg(1 + Q1 + Q2 +Q3 +Q4)<=1.2 and avg(1 + Q1 + Q2 +Q3 +Q4)>1 THEN sum(salary)*1.1
+		ELSE sum(salary)
+	    END, 2) AS "Проиндексированная зарплата",
+		round(avg(1 + Q1 + Q2 +Q3 +Q4), 2) as "Средний показатель коэффициента премии",
+		round(case 
+		when avg(1+Q1 + Q2 +Q3 +Q4)>1.2 THEN sum(salary)*1.2
+		when avg(1 + Q1 + Q2 +Q3 +Q4)<=1.2 and avg(1 + Q1 + Q2 +Q3 +Q4)>1 THEN sum(salary)*1.1
+		ELSE sum(salary)
+	    END - sum(salary), 2) as "Общий размер премии",
+		round(sum(salary)+case 
+		when avg(1+Q1 + Q2 +Q3 +Q4)>1.2 THEN sum(salary)*1.2
+		when avg(1 + Q1 + Q2 +Q3 +Q4)<=1.2 and avg(1 + Q1 + Q2 +Q3 +Q4)>1 THEN sum(salary)*1.1
+		ELSE sum(salary)
+	    END - sum(salary), 2) as "Общая сумма зарплат(+ премии) до индексации",
+		round(sum(salary) * avg(1 + Q1 + Q2 +Q3 +Q4) + case 
+		when avg(1+Q1 + Q2 +Q3 +Q4)>1.2 THEN sum(salary)*1.2
+		when avg(1 + Q1 + Q2 +Q3 +Q4)<=1.2 and avg(1 + Q1 + Q2 +Q3 +Q4)>1 THEN sum(salary)*1.1
+		ELSE sum(salary)
+	    END - sum(salary), 2) "Общую сумму зарплат(+ премии) после индексации(премии не индексируются)",
+		round((1-(sum(salary)+case 
+		when avg(1+Q1 + Q2 +Q3 +Q4)>1.2 THEN sum(salary)*1.2
+		when avg(1 + Q1 + Q2 +Q3 +Q4)<=1.2 and avg(1 + Q1 + Q2 +Q3 +Q4)>1 THEN sum(salary)*1.1
+		ELSE sum(salary)
+	    END - sum(salary))/(sum(salary) * avg(1 + Q1 + Q2 +Q3 +Q4) + case 
+		when avg(1+Q1 + Q2 +Q3 +Q4)>1.2 THEN sum(salary)*1.2
+		when avg(1 + Q1 + Q2 +Q3 +Q4)<=1.2 and avg(1 + Q1 + Q2 +Q3 +Q4)>1 THEN sum(salary)*1.1
+		ELSE sum(salary)
+	    END - sum(salary))), 2) * 100 as "Разница в %"
+		
+from tab
+left join count_level_skill cls
+on tab.name_department = cls.name_department
+group by cls.name_department, "Фамилия руководителя"
+select rating_quater_1|rating_quater_2|rating_quater_3|rating_quater_4
+from tab;
+
+/*Не сделала:
+xii.     Общее количество оценок А
+xiii.     Общее количество оценок B
+xiv.     Общее количество оценок C
+xv.     Общее количество оценок D
+xvi.     Общее количество оценок Е
+Будет круто, если дадите подсказку - как выполнить, чтобы было все именно сгрупировано по отделам*/
